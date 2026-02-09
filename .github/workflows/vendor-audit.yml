@@ -1,0 +1,64 @@
+name: Vendor Audit Workflow
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  auto-label-vendor-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check for vendor names and add label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const vendorKeywords = ['solis', 'ginlong', 'enphase', 'sunrun', 'viasol'];
+            const bodyAndTitle = (issue.body + ' ' + issue.title).toLowerCase();
+            const hasVendor = vendorKeywords.some(v => bodyAndTitle.includes(v));
+            if (hasVendor && !issue.labels.some(label => label.name === 'vendor-audit')) {
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: ['vendor-audit']
+              });
+            }
+
+  notify-code-red-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Send notification comment on code-red label
+        uses: actions/github-script@v7
+        if: contains(github.event.issue.labels.*.name, 'code-red')
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '🚨 **Code Red Alert** 🚨\n\nThis issue has been labeled as code-red and requires immediate attention. Please prioritize accordingly.'
+            });
+
+  auto-assign-solis-milestone:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Auto-assign to ACassilly if in Solis milestone
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            if (issue.milestone && issue.milestone.title === 'Solis Vendor Relationship Reset') {
+              github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                assignees: ['ACassilly']
+              });
+            }
